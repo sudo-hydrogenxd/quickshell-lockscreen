@@ -2,6 +2,8 @@
 
 A lockscreen for Hyprland built with [Quickshell](https://quickshell.org). It is a drop-in replacement for `hyprlock`, with a slide-in curtain animation, a peek mode and a session-control menu. Authentication goes through PAM, and the lock itself uses the Wayland session-lock protocol.
 
+> **Note:** this project was vibe-coded with Claude (an AI assistant) and has only been tested on my own setup. Expect rough edges, and read the code before trusting it with your lock screen.
+
 ## Features
 
 - **Slide / instant / peek / session modes** behind a single `qslock` launcher
