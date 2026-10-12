@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# qslock — single entry point. Drop-in replacement for `hyprlock`.
+#   qslock                 lock now
+#   qslock --test          lock, auto-unlock after 15s (see Config.qml: testSeconds)
+#   qslock --no-capture    skip screenshots (solid background; handy for recovery)
+set -u
+
+CFG_NAME="lockscreen"
+TEST=0
+CAPTURE=1
+for a in "$@"; do
+  case "$a" in
+    --test) TEST=1 ;;
+    --no-capture) CAPTURE=0 ;;
+    -h|--help) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "qslock: unknown option $a" >&2; exit 2 ;;
+  esac
+done
+
+RUNTIME="${XDG_RUNTIME_DIR:-/tmp}"
+SHOT_DIR="$RUNTIME/qslock"
+
+# ── Safe to launch twice ──
+# 1) flock: second invocation exits immediately (lock is released if we crash, so recovery works)
+exec 9>"$RUNTIME/qslock.lock"
+flock -n 9 || exit 0
+# 2) belt and braces: already running under any name?
+if pgrep -u "$(id -u)" -f '(^|/)(quickshell|qs) .*-c lockscreen' >/dev/null 2>&1; then
+  exit 0
+fi
+
+# ── Screenshot every monitor BEFORE the lock surfaces appear ──
+FOCUSED=""
+mkdir -p -m 700 "$SHOT_DIR"
+find "$SHOT_DIR" -maxdepth 1 -name '*.png' -delete 2>/dev/null
+
+if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+  MON_JSON="$(hyprctl -j monitors 2>/dev/null || true)"
+  if [ -n "$MON_JSON" ]; then
+    FOCUSED="$(jq -r '.[] | select(.focused) | .name' <<<"$MON_JSON" | head -n1)"
+    if [ "$CAPTURE" = 1 ] && command -v grim >/dev/null 2>&1; then
+      while IFS= read -r out; do
+        [ -n "$out" ] && grim -l 1 -o "$out" "$SHOT_DIR/$out.png" &
+      done < <(jq -r '.[].name' <<<"$MON_JSON")
+      wait
+    fi
+  fi
+fi
+
+export QSLOCK_SHOT_DIR="$SHOT_DIR"
+export QSLOCK_FOCUSED="$FOCUSED"
+[ "$TEST" = 1 ] && export QSLOCK_TEST=1
+
+# -n: quickshell itself also refuses to start a duplicate of this config
+quickshell -c "$CFG_NAME" -n
+rc=$?
+
+# Screenshots contain your screen contents; don't leave them lying around.
+find "$SHOT_DIR" -maxdepth 1 -name '*.png' -delete 2>/dev/null
+exit $rc

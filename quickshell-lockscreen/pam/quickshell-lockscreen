@@ -1,0 +1,4 @@
+# /etc/pam.d/quickshell-lockscreen
+# Same stack your normal logins use on Arch (pam_unix + pam_faillock via system-auth).
+auth      include   system-auth
+account   include   system-auth
