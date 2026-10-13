@@ -14,9 +14,16 @@ Item {
     property real uiY: 0              // vertical offset of the UI group (used for the instant-mode slide-in)
 
     readonly property bool isUi: screenName === auth.uiScreenName
-    readonly property string wp: (cfg.preferCustomWallpaper && cfg.customWallpaper !== "")
+    readonly property string wpPrimary: (cfg.preferCustomWallpaper && cfg.customWallpaper !== "")
                                  ? cfg.customWallpaper
                                  : (auth.wallpapers[screenName] || cfg.customWallpaper)
+    // Too small for the screen (e.g. a live-wallpaper preview thumbnail)? Use customWallpaper instead,
+    // or the plain fallback colour if that is empty.
+    readonly property bool wpLowRes: cfg.minWallpaperScreenFraction > 0
+                                     && wpPrimary !== cfg.customWallpaper
+                                     && probe.status === Image.Ready
+                                     && probe.implicitWidth < width * cfg.minWallpaperScreenFraction
+    readonly property string wp: wpLowRes ? cfg.customWallpaper : wpPrimary
     readonly property bool wpIsColor: wp.indexOf("color:") === 0
     readonly property bool wpIsFile: wp.length > 0 && !wpIsColor
 
@@ -27,6 +34,15 @@ Item {
         return c;
     }
 
+    Image {                           // invisible probe: only used to read the wallpaper's real size
+        id: probe
+        visible: false
+        width: 1; height: 1
+        source: (curtain.wpPrimary.length > 0 && curtain.wpPrimary.indexOf("color:") !== 0)
+                ? "file://" + curtain.wpPrimary.split("/").map(encodeURIComponent).join("/") : ""
+        asynchronous: false
+        cache: true
+    }
     Rectangle {
         anchors.fill: parent
         color: curtain.wpIsColor ? curtain.parseColor(curtain.wp) : curtain.cfg.fallbackBg

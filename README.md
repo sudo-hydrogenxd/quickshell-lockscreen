@@ -20,6 +20,7 @@ A lockscreen for Hyprland built with [Quickshell](https://quickshell.org). It is
 - `jq`, `playerctl`, `flock` (util-linux)
 - A Nerd Font (for the icons)
 - Optional: Noctalia, for automatic wallpaper detection (otherwise set `customWallpaper`)
+- Optional: `ffmpeg` (or `gst-launch-1.0`), to show a sharp frame of a live wallpaper played by gSlapper
 
 ## Install
 
@@ -72,6 +73,7 @@ The gap between the button labels and the "Slide down to…" hint is the spacer 
 
 ### Notes
 
+- **Live wallpapers:** if [gSlapper](https://github.com/Nomadcxx/gSlapper) is playing a video on a monitor, `qslock` grabs one full-resolution frame of that video (cached in `~/.cache/qslock`) and uses it as the lock background. Noctalia itself only reports a tiny preview thumbnail for video wallpapers.
 - **Wallpaper:** `qslock` asks Noctalia for the wallpaper (`noctalia msg wallpaper-get`). Without Noctalia you get `customWallpaper`, or a plain dark background if that is empty.
 - **Log out** runs `hyprctl dispatch 'hl.dsp.exit()'`, the Lua-config form for Hyprland 0.55+. On uwsm, change it to `["uwsm", "stop"]`.
 - **Sleep** locks first, then suspends. It is experimental: hiding the lock UI until wake-up may not behave the same on every setup.

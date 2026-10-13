@@ -32,6 +32,48 @@ if pgrep -u "$(id -u)" -f '(^|/)(quickshell|qs) .*lockscreen' >/dev/null 2>&1; t
   exit 0
 fi
 
+# ── Live wallpapers (gSlapper) ──
+# Noctalia reports a tiny 224x126 preview thumbnail for video wallpapers. If gSlapper is playing a video
+# on an output, find that video and use one full-resolution frame of it instead (cached after the first lock).
+video_for_output() {   # $1 = output name -> prints the video file gSlapper plays on it
+  local out="$1" pid n
+  local -a args
+  for pid in $(pgrep -u "$(id -u)" -x gslapper 2>/dev/null); do
+    mapfile -t args < <(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null)
+    n=${#args[@]}
+    if [ "$n" -ge 2 ] && [ "${args[n-2]}" = "$out" ] && [ -f "${args[n-1]}" ]; then
+      printf '%s\n' "${args[n-1]}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+video_frame() {        # $1 = video file -> prints the path of a still frame (cached)
+  local v="$1" cache key base e
+  cache="${XDG_CACHE_HOME:-$HOME/.cache}/qslock"
+  key="$(printf '%s|%s' "$v" "$(stat -c '%Y-%s' "$v" 2>/dev/null)" | sha1sum | cut -c1-16)"
+  base="$cache/frame-$key"
+  for e in jpg png; do
+    if [ -s "$base.$e" ]; then printf '%s\n' "$base.$e"; return 0; fi
+  done
+  mkdir -p "$cache"
+  if command -v ffmpeg >/dev/null 2>&1; then
+    # 1 s in (skips a black first frame); retry from the start for very short clips
+    timeout 8 ffmpeg -nostdin -loglevel error -y -ss 1 -i "$v" -frames:v 1 -q:v 2 "$base.jpg" 2>/dev/null || true
+    [ -s "$base.jpg" ] || timeout 8 ffmpeg -nostdin -loglevel error -y -i "$v" -frames:v 1 -q:v 2 "$base.jpg" 2>/dev/null || true
+    if [ -s "$base.jpg" ]; then printf '%s\n' "$base.jpg"; return 0; fi
+    rm -f "$base.jpg"
+  fi
+  if command -v gst-launch-1.0 >/dev/null 2>&1; then
+    timeout 8 gst-launch-1.0 -q filesrc location="$v" ! decodebin ! videoconvert ! pngenc snapshot=true \
+      ! filesink location="$base.png" >/dev/null 2>&1 || true
+    if [ -s "$base.png" ]; then printf '%s\n' "$base.png"; return 0; fi
+    rm -f "$base.png"
+  fi
+  return 1
+}
+
 # ── Monitors, focused output, and Noctalia's current wallpaper per monitor ──
 FOCUSED=""
 WALLS='{}'
@@ -42,7 +84,12 @@ if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     if command -v noctalia >/dev/null 2>&1; then
       while IFS= read -r out; do
         [ -n "$out" ] || continue
-        p="$(timeout 1 noctalia msg wallpaper-get "$out" 2>/dev/null | head -n1)"
+        p=""
+        if v="$(video_for_output "$out")" && f="$(video_frame "$v")"; then
+          p="$f"                       # live wallpaper: a sharp frame of the playing video
+        else
+          p="$(timeout 1 noctalia msg wallpaper-get "$out" 2>/dev/null | head -n1)"
+        fi
         p="${p/#\~/$HOME}"
         case "$p" in /*|color:*) ;; *) p="" ;; esac
         [ -n "$p" ] && WALLS="$(jq -c --arg k "$out" --arg v "$p" '. + {($k): $v}' <<<"$WALLS")"

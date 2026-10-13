@@ -98,6 +98,9 @@ QtObject {
     // or a solid colour like "color:#101018". "~" is not expanded.
     readonly property string customWallpaper: ""
     readonly property bool   preferCustomWallpaper: false   // true = always use customWallpaper, even with Noctalia
+    // If the wallpaper image is narrower than this fraction of the screen width (e.g. a live-wallpaper
+    // plugin handing over a tiny preview thumbnail), use customWallpaper instead. 0 = never check.
+    readonly property real   minWallpaperScreenFraction: 0.5
     readonly property string pamService: "quickshell-lockscreen"   // /etc/pam.d/<this>
 
     // ───────────── GREETINGS ─────────────
